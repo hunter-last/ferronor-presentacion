@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>La base de datos de Ferronor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12161d;
+    --surface:#1b212b;
+    --surface-2:#222937;
+    --border:#2c3542;
+    --border-soft:#232a35;
+    --text:#edeff2;
+    --text-dim:#98a2b3;
+    --text-faint:#5c6675;
+    --accent:#d8a84e;
+    --accent-soft:rgba(216,168,78,0.13);
+    --restrict:#4fa9a2;
+    --restrict-soft:rgba(79,169,162,0.12);
+    --cascade:#c05a68;
+    --cascade-soft:rgba(192,90,104,0.13);
+    --font-display:'Space Grotesk', 'IBM Plex Sans', sans-serif;
+    --font-body:'IBM Plex Sans', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html,body{
+    height:100%;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    overflow:hidden;
+  }
+
+  ::selection{ background:var(--accent-soft); color:var(--text); }
+
+  /* ---------- layout shell ---------- */
+
+  .deck{
+    position:relative;
+    height:100vh;
+    height:100dvh;
+    width:100vw;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .chrome{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:22px clamp(20px, 4vw, 56px) 0;
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    color:var(--text-faint);
+    letter-spacing:0.01em;
+    flex-shrink:0;
+  }
+  .chrome .proj{ color:var(--text-dim); }
+  .chrome .proj b{ color:var(--text-dim); font-weight:500; }
+  .chrome .count span{ color:var(--accent); }
+
+  .stage{
+    position:relative;
+    flex:1;
+    min-height:0;
+    padding:0 clamp(20px, 4vw, 56px);
+    display:flex;
+    align-items:center;
+  }
+
+  .slide{
+    position:absolute;
+    inset:0;
+    padding:inherit;
+    display:none;
+    align-items:center;
+    opacity:0;
+  }
+  .slide.active{
+    display:flex;
+    opacity:1;
+    animation:rise 0.5s ease both;
+  }
+  @keyframes rise{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .slide.active{ animation:none; }
+  }
+
+  .slide-inner{
+    width:100%;
+    max-width:1180px;
+    margin:0 auto;
+    max-height:100%;
+    overflow-y:auto;
+    padding:24px 2px 32px;
+  }
+  .slide-inner::-webkit-scrollbar{ width:6px; }
+  .slide-inner::-webkit-scrollbar-thumb{ background:var(--border); border-radius:3px; }
+
+  .kicker{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    color:var(--accent);
+    margin-bottom:14px;
+  }
+
+  h1{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:clamp(28px, 3.6vw, 42px);
+    line-height:1.15;
+    letter-spacing:-0.01em;
+    max-width:16ch;
+  }
+
+  .subhead{
+    font-size:16px;
+    color:var(--text-dim);
+    margin-top:12px;
+    max-width:56ch;
+    line-height:1.5;
+  }
+
+  .body{
+    margin-top:30px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+
+  p.note{ font-size:14.5px; color:var(--text-dim); line-height:1.65; max-width:66ch; }
+  p.note b{ color:var(--text); font-weight:500; }
+
+  /* ---------- source tag ---------- */
+  .src{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--text-faint);
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin-bottom:8px;
+  }
+  .src::before{ content:'◆'; font-size:8px; color:var(--accent); }
+
+  /* ---------- code blocks ---------- */
+  .code{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-left:2px solid var(--accent);
+    padding:16px 18px;
+    font-family:var(--font-mono);
+    font-size:13.5px;
+    line-height:1.65;
+    overflow-x:auto;
+    white-space:pre;
+    color:var(--text-dim);
+  }
+  .code .kw{ color:var(--accent); font-weight:500; }
+  .code .lit{ color:var(--restrict); }
+  .code .cascade-tok{ color:var(--cascade); }
+  .code .cm{ color:var(--text-faint); font-style:italic; }
+  .code .tbl{ color:var(--text); }
+
+  /* ---------- generic cards ---------- */
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    padding:18px 20px;
+  }
+  .card.restrict{ border-left:3px solid var(--restrict); }
+  .card.cascade{ border-left:3px solid var(--cascade); }
+  .card h3{
+    font-family:var(--font-display);
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  .card.restrict h3{ color:var(--restrict); }
+  .card.cascade h3{ color:var(--cascade); }
+  .card .rel{
+    font-family:var(--font-mono);
+    font-size:13px;
+    color:var(--text-dim);
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .card .rel .arrow{ color:var(--text-faint); }
+  .card p{ font-size:13.5px; color:var(--text-dim); line-height:1.6; }
+
+  /* ---------- module sequence (slide 1) ---------- */
+  .seq{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .seq-row{
+    display:grid;
+    grid-template-columns:34px 1fr auto;
+    align-items:center;
+    gap:14px;
+    padding:9px 14px;
+    background:var(--surface);
+    border:1px solid var(--border-soft);
+  }
+  .seq-row .n{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--accent);
+    background:var(--accent-soft);
+    width:26px; height:26px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .seq-row .name{ font-size:14px; color:var(--text); font-weight:500; }
+  .seq-row .desc{ font-size:12.5px; color:var(--text-faint); font-family:var(--font-mono); text-align:right; }
+
+  .fact-row{
+    display:flex;
+    gap:28px;
+    flex-wrap:wrap;
+    margin-top:6px;
+  }
+  .fact{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .fact .k{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); }
+  .fact .v{ font-size:14px; color:var(--text); }
+
+  /* ---------- N+1 diagram ---------- */
+  .compare{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:16px;
+  }
+  .compare .panel{
+    border:1px solid var(--border);
+    padding:16px 18px;
+  }
+  .compare .panel.good{ border-left:3px solid var(--restrict); }
+  .compare .panel.bad{ border-left:3px solid var(--cascade); opacity:0.85; }
+  .compare .panel h4{
+    font-family:var(--font-mono);
+    font-size:12px;
+    text-transform:none;
+    color:var(--text-dim);
+    margin-bottom:12px;
+  }
+  .qbox{
+    font-family:var(--font-mono);
+    font-size:12px;
+    background:var(--surface-2);
+    border:1px solid var(--border-soft);
+    padding:7px 10px;
+    display:inline-block;
+    color:var(--text-dim);
+  }
+  .qbox.one{ color:var(--restrict); border-color:var(--restrict-soft); }
+  .stack{ display:flex; flex-direction:column; gap:5px; margin-top:8px; }
+  .mini-row{ display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
+  .mini{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    color:var(--cascade);
+    background:var(--cascade-soft);
+    padding:3px 6px;
+  }
+  .result-line{ margin-top:12px; font-size:12.5px; color:var(--text-dim); }
+
+  /* ---------- index list (slide 6) ---------- */
+  .idx-list{ display:flex; flex-direction:column; gap:2px; }
+  .idx-row{
+    display:grid;
+    grid-template-columns:22px 1fr 1.3fr;
+    gap:16px;
+    padding:12px 4px;
+    border-bottom:1px solid var(--border-soft);
+    align-items:start;
+  }
+  .idx-row:last-child{ border-bottom:none; }
+  .idx-row .num{ font-family:var(--font-mono); font-size:12px; color:var(--accent); padding-top:2px; }
+  .idx-row .def{ font-family:var(--font-mono); font-size:13px; color:var(--text); line-height:1.5; }
+  .idx-row .def .on{ color:var(--text-faint); }
+  .idx-row .why{ font-size:13px; color:var(--text-dim); line-height:1.55; }
+  .tag{
+    display:inline-block;
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--accent);
+    border:1px solid var(--accent-soft);
+    padding:1px 6px;
+    margin-left:8px;
+    vertical-align:middle;
+  }
+
+  /* ---------- architecture flow diagram ---------- */
+  .flow-col{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:0;
+  }
+  .flow-node{
+    font-family:var(--font-mono);
+    font-size:13.5px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    padding:9px 18px;
+    color:var(--text);
+  }
+  .flow-node.pg{ border-color:var(--accent); color:var(--accent); }
+  .flow-arrow{
+    font-family:var(--font-mono);
+    color:var(--text-faint);
+    padding:2px 0 2px 18px;
+    font-size:13px;
+  }
+
+  .proceso-diagram{ display:flex; flex-direction:column; align-items:flex-start; gap:14px; }
+  .proceso-top{
+    font-family:var(--font-mono);
+    font-size:13.5px;
+    background:var(--accent-soft);
+    border:1px solid var(--accent);
+    color:var(--accent);
+    padding:9px 18px;
+  }
+  .proceso-children{ display:flex; gap:10px; padding-left:18px; }
+  .proceso-child{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    padding:7px 14px;
+    color:var(--text-dim);
+  }
+  .proceso-bottom{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    color:var(--restrict);
+    border:1px solid var(--restrict-soft);
+    background:var(--restrict-soft);
+    padding:7px 14px;
+    margin-left:18px;
+  }
+
+  /* ---------- closing synthesis ---------- */
+  .synth{ display:flex; flex-direction:column; gap:0; }
+  .synth-row{
+    display:grid;
+    grid-template-columns:200px 1fr;
+    gap:20px;
+    padding:14px 4px;
+    border-bottom:1px solid var(--border-soft);
+    align-items:baseline;
+  }
+  .synth-row:last-of-type{ border-bottom:none; }
+  .synth-row .k{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:16px;
+    color:var(--accent);
+  }
+  .synth-row .v{ font-size:14.5px; color:var(--text-dim); }
+  .closing-line{
+    margin-top:26px;
+    padding-top:22px;
+    border-top:1px solid var(--border);
+    font-family:var(--font-display);
+    font-size:19px;
+    font-weight:500;
+    color:var(--text);
+    max-width:42ch;
+    line-height:1.4;
+  }
+
+  /* ---------- nav ---------- */
+  .nav{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    padding:16px 0 22px;
+  }
+  .nav button{
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    width:36px; height:36px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    font-size:16px;
+    font-family:var(--font-mono);
+    transition:border-color 0.15s, color 0.15s;
+  }
+  .nav button:hover{ color:var(--accent); border-color:var(--accent); }
+  .nav button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .nav button:disabled{ opacity:0.3; cursor:default; }
+  .nav button:disabled:hover{ color:var(--text-dim); border-color:var(--border); }
+
+  .dots{ display:flex; gap:7px; }
+  .dot{
+    width:7px; height:7px;
+    border-radius:50%;
+    background:var(--border);
+    cursor:pointer;
+    border:none;
+    padding:0;
+    transition:background 0.15s, transform 0.15s;
+  }
+  .dot:hover{ background:var(--text-faint); }
+  .dot.active{ background:var(--accent); transform:scale(1.3); }
+  .dot:focus-visible{ outline:2px solid var(--accent); outline-offset:3px; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width:760px){
+    html,body{ overflow-y:auto; overflow-x:hidden; }
+    .deck{ height:auto; min-height:100vh; }
+    .stage{ position:static; padding:0 20px; }
+    .slide{ position:static; }
+    .slide-inner{ max-height:none; overflow-y:visible; padding:16px 2px 20px; }
+    .grid2, .compare{ grid-template-columns:1fr; }
+    h1{ max-width:none; font-size:26px; }
+    .idx-row{ grid-template-columns:1fr; gap:4px; }
+    .idx-row .num{ display:none; }
+    .synth-row{ grid-template-columns:1fr; gap:4px; }
+    .proceso-children{ flex-wrap:wrap; }
+    .nav{ position:sticky; bottom:0; background:linear-gradient(to top, var(--bg) 60%, transparent); }
+  }
+</style>
+</head>
+<body>
+
+<div class="deck">
+
+  <div class="chrome">
+    <div class="proj">Decor Home <b>Ferronor</b> — base de datos</div>
+    <div class="count"><span id="cur">1</span> / 8</div>
+  </div>
+
+  <div class="stage">
+
+    <!-- SLIDE 1 -->
+    <section class="slide active" data-i="1">
+      <div class="slide-inner">
+        <div class="kicker">dbferronor · PostgreSQL 15+</div>
+        <h1>La base de datos de Ferronor</h1>
+        <p class="subhead">Una sola base, ocho módulos de negocio, construida con once scripts que se ejecutan en orden estricto.</p>
+
+        <div class="body">
+          <div class="fact-row">
+            <div class="fact"><span class="k">acceso a datos</span><span class="v">JDBC puro + patrón DAO (sin ORM)</span></div>
+            <div class="fact"><span class="k">aplicación</span><span class="v">Java 23 · Swing de escritorio</span></div>
+            <div class="fact"><span class="k">alcance</span><span class="v">un solo local, sin multi-almacén</span></div>
+          </div>
+
+          <div class="seq">
+            <div class="seq-row"><span class="n">01</span><span class="name">seguridad.sql</span><span class="desc">roles, permisos, usuarios</span></div>
+            <div class="seq-row"><span class="n">02</span><span class="name">maestros.sql</span><span class="desc">categorías, productos, clientes, proveedores</span></div>
+            <div class="seq-row"><span class="n">03</span><span class="name">inventario.sql</span><span class="desc">stock, movimientos</span></div>
+            <div class="seq-row"><span class="n">04</span><span class="name">compras.sql</span><span class="desc">órdenes de compra, compras</span></div>
+            <div class="seq-row"><span class="n">05</span><span class="name">ventas.sql</span><span class="desc">ventas, comprobantes</span></div>
+            <div class="seq-row"><span class="n">06</span><span class="name">tesoreria.sql</span><span class="desc">caja, cuentas bancarias</span></div>
+            <div class="seq-row"><span class="n">07</span><span class="name">contabilidad.sql</span><span class="desc">plan de cuentas, asientos</span></div>
+            <div class="seq-row"><span class="n">08</span><span class="name">auditoria.sql</span><span class="desc">registro de eventos</span></div>
+            <div class="seq-row"><span class="n">09</span><span class="name">indices.sql</span><span class="desc">índices y restricciones adicionales</span></div>
+            <div class="seq-row"><span class="n">10</span><span class="name">datos_iniciales.sql</span><span class="desc">catálogos base y usuarios de prueba</span></div>
+            <div class="seq-row"><span class="n">11</span><span class="name">procedimientos_almacenados.sql</span><span class="desc">funciones y procedimientos PL/pgSQL</span></div>
+          </div>
+          <p class="note">El orden no es cosmético: cada script se apoya en los objetos creados por los anteriores. Los últimos scripts agregan optimización, datos iniciales y lógica reutilizable en PostgreSQL.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2 -->
+    <section class="slide" data-i="2">
+      <div class="slide-inner">
+        <div class="kicker">integridad referencial</div>
+        <h1>RESTRICT protege, CASCADE acompaña</h1>
+        <p class="subhead">Regla de arquitectura del proyecto: <code style="font-family:var(--font-mono); color:var(--text);">ON DELETE RESTRICT</code> por defecto, <code style="font-family:var(--font-mono); color:var(--text);">CASCADE</code> reservado a tablas de detalle puro.</p>
+
+        <div class="body">
+          <div class="grid2">
+            <div class="card restrict">
+              <h3>RESTRICT</h3>
+              <div class="rel">categoria <span class="arrow">←</span> producto</div>
+              <p><code style="font-family:inherit;">producto.id_categoria REFERENCES categoria(id_categoria) ON DELETE RESTRICT</code></p>
+              <p style="margin-top:10px;">Si un producto todavía apunta a esa categoría, PostgreSQL bloquea el borrado. Un padre en uso no puede desaparecer.</p>
+            </div>
+            <div class="card cascade">
+              <h3>CASCADE</h3>
+              <div class="rel">venta <span class="arrow">→</span> detalle_venta</div>
+              <p><code style="font-family:inherit;">detalle_venta.id_venta REFERENCES venta(id_venta) ON DELETE CASCADE</code></p>
+              <p style="margin-top:10px;">El detalle no tiene ciclo de vida propio: depende por completo de su cabecera. Si la venta se va, sus líneas se van con ella.</p>
+            </div>
+          </div>
+          <p class="note"><b>ARQUITECTURA.md</b> lo fija como política explícita: <code style="font-family:inherit;">ON UPDATE CASCADE</code> en todas las FK, <code style="font-family:inherit;">ON DELETE CASCADE</code> únicamente en <code style="font-family:inherit;">detalle_venta</code>, <code style="font-family:inherit;">detalle_compra</code>, <code style="font-family:inherit;">detalle_orden_compra</code>, <code style="font-family:inherit;">detalle_asiento</code> y <code style="font-family:inherit;">rol_permiso</code>. Todo lo demás, RESTRICT.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3 -->
+    <section class="slide" data-i="3">
+      <div class="slide-inner">
+        <div class="kicker">restricciones CHECK</div>
+        <h1>Una línea, un solo lado</h1>
+        <p class="subhead">El CHECK de <code style="font-family:var(--font-mono); color:var(--text);">detalle_asiento</code> protege cada línea contable — no el asiento completo.</p>
+
+        <div class="body">
+          <div>
+            <div class="src">sql/07_contabilidad.sql</div>
+            <div class="code">CREATE TABLE <span class="tbl">detalle_asiento</span> (
+    ...
+    debe   NUMERIC(12,2) NOT NULL DEFAULT 0 <span class="kw">CHECK</span> (debe &gt;= 0),
+    haber  NUMERIC(12,2) NOT NULL DEFAULT 0 <span class="kw">CHECK</span> (haber &gt;= 0),
+    <span class="kw">CHECK</span> ((debe &gt; 0 <span class="kw">AND</span> haber = 0) <span class="kw">OR</span> (haber &gt; 0 <span class="kw">AND</span> debe = 0))
+);</div>
+          </div>
+
+          <p class="note">Cada fila cae en el Debe o en el Haber — nunca en ambos, nunca en ninguno. Pero esto valida <b>una línea a la vez</b>. No garantiza que el asiento completo cuadre (que Σdebe = Σhaber): eso lo arma la lógica que construye el asiento, del lado de <code style="font-family:inherit;">contabilidad/logica</code> en Java.</p>
+
+          <div class="grid2">
+            <div class="card">
+              <div class="rel" style="font-size:12px;">venta / compra</div>
+              <div class="code" style="padding:10px 14px; font-size:12.5px; border-left:2px solid var(--border);"><span class="kw">CHECK</span> (total = subtotal + igv)</div>
+            </div>
+            <div class="card">
+              <div class="rel" style="font-size:12px;">cuenta_cobrar / cuenta_pagar</div>
+              <div class="code" style="padding:10px 14px; font-size:12.5px; border-left:2px solid var(--border);"><span class="kw">CHECK</span> (saldo_pendiente = monto_total - monto_cobrado)</div>
+            </div>
+          </div>
+          <p class="note">La integridad numérica no vive solo en contabilidad: el mismo principio se repite en ventas, compras y cuentas por cobrar/pagar.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4 -->
+    <section class="slide" data-i="4">
+      <div class="slide-inner">
+        <div class="kicker">consultas relacionadas</div>
+        <h1>Un query, no cien</h1>
+        <p class="subhead">Los históricos de Compras y Ventas traen sus datos relacionados en una sola consulta con JOIN.</p>
+
+        <div class="body">
+          <div>
+            <div class="src">CompraDAOImpl.consultarHistorial() — fragmento simplificado</div>
+            <div class="code"><span class="kw">SELECT</span> c.*, p.razon_social, fp.nombre, u.nombres
+<span class="kw">FROM</span> <span class="tbl">compra</span> c
+<span class="kw">JOIN</span> <span class="tbl">proveedor</span> p  <span class="kw">ON</span> p.id_proveedor = c.id_proveedor
+<span class="kw">JOIN</span> <span class="tbl">forma_pago</span> fp <span class="kw">ON</span> fp.id_forma_pago = c.id_forma_pago
+<span class="kw">JOIN</span> <span class="tbl">usuario</span> u   <span class="kw">ON</span> u.id_usuario = c.id_usuario</div>
+          </div>
+          <p class="note"><code style="font-family:inherit;">VentaDAOImpl.consultarHistorial()</code> hace lo mismo con <code style="font-family:inherit;">cliente</code>, <code style="font-family:inherit;">forma_pago</code> y <code style="font-family:inherit;">usuario</code>, y agrega <code style="font-family:inherit;">LEFT JOIN comprobante</code> / <code style="font-family:inherit;">LEFT JOIN tipo_comprobante</code> — LEFT porque una venta puede existir todavía sin comprobante emitido.</p>
+
+          <div class="compare">
+            <div class="panel good">
+              <h4>Con JOIN — lo que hace Ferronor</h4>
+              <span class="qbox one">1 consulta</span>
+              <div class="result-line">→ 100 filas, cada una ya con proveedor, forma de pago y usuario.</div>
+            </div>
+            <div class="panel bad">
+              <h4>Patrón N+1 — evitado</h4>
+              <span class="qbox">1 consulta principal</span>
+              <div class="mini-row">
+                <span class="mini">+1 por fila</span><span class="mini">+1 por fila</span><span class="mini">+1 por fila</span><span class="mini">… × 100</span>
+              </div>
+              <div class="result-line">→ 101 consultas para lo mismo.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5 -->
+    <section class="slide" data-i="5">
+      <div class="slide-inner">
+        <div class="kicker">reporte central</div>
+        <h1>El Balance de Comprobación</h1>
+        <p class="subhead">Un reporte derivado: se calcula al vuelo con una agregación, nunca se guarda como tabla.</p>
+
+        <div class="body">
+          <div>
+            <div class="src">BalanceComprobacionDAOImpl.obtenerAgregadoPorCuenta(hasta)</div>
+            <div class="code"><span class="kw">SELECT</span> pc.id_cuenta, pc.codigo, pc.nombre_cuenta,
+       <span class="kw">COALESCE</span>(<span class="kw">SUM</span>(da.debe),0)  <span class="kw">AS</span> total_debe,
+       <span class="kw">COALESCE</span>(<span class="kw">SUM</span>(da.haber),0) <span class="kw">AS</span> total_haber
+<span class="kw">FROM</span> <span class="tbl">plan_cuenta</span> pc
+<span class="kw">JOIN</span> <span class="tbl">detalle_asiento</span> da  <span class="kw">ON</span> da.id_cuenta = pc.id_cuenta
+<span class="kw">JOIN</span> <span class="tbl">asiento_contable</span> a <span class="kw">ON</span> da.id_asiento = a.id_asiento
+<span class="kw">WHERE</span> a.estado = <span class="lit">'ACTIVO'</span> <span class="kw">AND</span> a.fecha &lt; ?
+<span class="kw">GROUP BY</span> pc.id_cuenta, pc.codigo, pc.nombre_cuenta
+<span class="kw">ORDER BY</span> pc.codigo</div>
+          </div>
+
+          <div class="grid2">
+            <div class="card" style="border-left:3px solid var(--accent);">
+              <p><b style="color:var(--text);">JOIN encadenado</b><br>plan_cuenta → detalle_asiento → asiento_contable, para llegar del catálogo contable al movimiento real.</p>
+            </div>
+            <div class="card" style="border-left:3px solid var(--accent);">
+              <p><b style="color:var(--text);">Filtros del corte</b><br><code style="font-family:inherit;">estado = 'ACTIVO'</code> excluye asientos anulados; <code style="font-family:inherit;">fecha &lt; ?</code> define el "hasta" del balance.</p>
+            </div>
+          </div>
+          <p class="note">El propio DAO deja el porqué por escrito: se usa <code style="font-family:inherit;">JOIN</code> y no <code style="font-family:inherit;">LEFT JOIN</code> a propósito, porque el balance solo debe mostrar cuentas con movimiento real — no el catálogo completo.</p>
+          <p class="note"><b>Decisión de arquitectura:</b> el Balance de Comprobación —como el Kardex, el Libro Diario, el Libro Mayor y el Estado de Resultados— nunca es una tabla persistente. Siempre se recalcula.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6 -->
+    <section class="slide" data-i="6">
+      <div class="slide-inner">
+        <div class="kicker">rendimiento</div>
+        <h1>Seis índices, seis razones</h1>
+        <p class="subhead"><code style="font-family:var(--font-mono); color:var(--text);">sql/09_indices.sql</code> — nada se indexa "por si acaso".</p>
+
+        <div class="body">
+          <div class="idx-list">
+            <div class="idx-row">
+              <span class="num">1</span>
+              <span class="def">idx_movimiento_producto_fecha<br><span class="on">ON movimiento_inventario(id_producto, fecha)</span></span>
+              <span class="why">Kardex de un producto acotado a un rango de fechas.</span>
+            </div>
+            <div class="idx-row">
+              <span class="num">2</span>
+              <span class="def">idx_movimiento_fecha<br><span class="on">ON movimiento_inventario(fecha)</span></span>
+              <span class="why">Movimientos de inventario filtrados por período, sin fijar producto.</span>
+            </div>
+            <div class="idx-row">
+              <span class="num">3</span>
+              <span class="def">idx_movimiento_origen<br><span class="on">ON movimiento_inventario(origen)</span></span>
+              <span class="why">Filtrar por tipo de origen: COMPRA, VENTA, AJUSTE, DEVOLUCIÓN.</span>
+            </div>
+            <div class="idx-row">
+              <span class="num">4</span>
+              <span class="def">idx_ajuste_producto<br><span class="on">ON ajuste_inventario(id_producto)</span></span>
+              <span class="why">Historial de ajustes de un producto puntual.</span>
+            </div>
+            <div class="idx-row">
+              <span class="num">5</span>
+              <span class="def">idx_cuenta_pagar_vencimiento <span class="tag">parcial</span><br><span class="on">ON cuenta_pagar(fecha_vencimiento) WHERE estado = 'PENDIENTE'</span></span>
+              <span class="why">Solo indexa lo que todavía puede vencer — las cuentas PAGADA o VENCIDA no ocupan espacio en el índice.</span>
+            </div>
+            <div class="idx-row">
+              <span class="num">6</span>
+              <span class="def">uq_compra_orden_compra <span class="tag">único parcial</span><br><span class="on">ON compra(id_orden_compra) WHERE id_orden_compra IS NOT NULL</span></span>
+              <span class="why">Una orden de compra no puede derivar en más de una compra — sin penalizar las compras directas, que no vienen de ninguna orden.</span>
+            </div>
+          </div>
+          <p class="note">Regla de arquitectura del proyecto: los índices se crean para casos de uso identificados, no por anticipación genérica.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7 -->
+    <section class="slide" data-i="7">
+      <div class="slide-inner">
+        <div class="kicker">dónde vive la lógica</div>
+        <h1>PostgreSQL también ejecuta lógica reutilizable</h1>
+        <p class="subhead">Ferronor combina integridad y consultas en PostgreSQL con lógica reutilizable en PL/pgSQL; la orquestación multi-módulo continúa en Java.</p>
+
+        <div class="body">
+          <div class="grid2" style="align-items:start;">
+            <div>
+              <div class="src">una operación de un solo módulo</div>
+              <div class="flow-col">
+                <div class="flow-node">Vista</div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-node">Service</div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-node">DAO</div>
+                <div class="flow-arrow">↓</div>
+                <div class="flow-node pg">PostgreSQL</div>
+              </div>
+              <p class="note" style="margin-top:14px;">PostgreSQL garantiza integridad y ejecuta consultas SQL y lógica PL/pgSQL reutilizable. Los DAO acceden a la base; los Services concentran las reglas propias del módulo.</p>
+            </div>
+            <div>
+              <div class="src">una operación multi-módulo</div>
+              <div class="proceso-diagram">
+                <div class="proceso-top">ProcesoVenta</div>
+                <div class="proceso-children">
+                  <div class="proceso-child">Venta</div>
+                  <div class="proceso-child">Inventario</div>
+                  <div class="proceso-child">Contabilidad</div>
+                </div>
+                <div class="proceso-bottom">misma transacción — TransactionContext</div>
+              </div>
+              <p class="note" style="margin-top:14px;"><code style="font-family:inherit;">procesos/</code> coordina operaciones que involucran varios módulos y mantiene la transacción desde Java mediante <code style="font-family:inherit;">TransactionContext</code>.</p>
+            </div>
+          </div>
+
+          <div>
+            <div class="src">sql/11_procedimientos_almacenados.sql</div>
+            <div class="grid2">
+              <div class="card" style="border-left:3px solid var(--accent);">
+                <div class="rel" style="font-size:12px;">PL/pgSQL — 1 procedure</div>
+                <div class="code" style="padding:10px 14px; font-size:12.5px; border-left:2px solid var(--border);">sp_recalcular_estados_cuentas()</div>
+              </div>
+              <div class="card" style="border-left:3px solid var(--accent);">
+                <div class="rel" style="font-size:12px;">PL/pgSQL — 4 functions</div>
+                <div class="code" style="padding:10px 14px; font-size:12.5px; border-left:2px solid var(--border);">fn_dashboard_kpis()
+fn_dashboard_top_productos()
+fn_dashboard_alertas_stock()
+fn_dashboard_ultimas_ventas()</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8 -->
+    <section class="slide" data-i="8">
+      <div class="slide-inner">
+        <div class="kicker">cierre</div>
+        <h1>La filosofía de la base, en seis líneas</h1>
+
+        <div class="body">
+          <div class="synth">
+            <div class="synth-row"><span class="k">Integridad</span><span class="v">FK + CHECK</span></div>
+            <div class="synth-row"><span class="k">Consulta</span><span class="v">JOIN + agregaciones</span></div>
+            <div class="synth-row"><span class="k">Rendimiento</span><span class="v">índices reales, sobre casos de uso reales</span></div>
+            <div class="synth-row"><span class="k">Contabilidad</span><span class="v">datos normalizados + reportes derivados</span></div>
+            <div class="synth-row"><span class="k">PL/pgSQL</span><span class="v">1 procedure + 4 functions para operaciones y Dashboard</span></div>
+            <div class="synth-row"><span class="k">Transacciones</span><span class="v">coordinación desde Java</span></div>
+          </div>
+          <div class="closing-line">PostgreSQL protege, consulta y automatiza lógica SQL reutilizable; Java concentra las reglas de negocio y coordina las operaciones multi-módulo.</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="nav">
+    <button id="prev" aria-label="Diapositiva anterior">‹</button>
+    <div class="dots" id="dots"></div>
+    <button id="next" aria-label="Siguiente diapositiva">›</button>
+  </div>
+
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  const curEl = document.getElementById('cur');
+  const dotsEl = document.getElementById('dots');
+  const prevBtn = document.getElementById('prev');
+  const nextBtn = document.getElementById('next');
+  let idx = 0;
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.setAttribute('aria-label', 'Ir a la diapositiva ' + (i + 1));
+    d.addEventListener('click', () => go(i));
+    dotsEl.appendChild(d);
+  });
+  const dots = Array.from(dotsEl.children);
+
+  function go(n){
+    idx = Math.max(0, Math.min(total - 1, n));
+    slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+    dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+    curEl.textContent = idx + 1;
+    prevBtn.disabled = idx === 0;
+    nextBtn.disabled = idx === total - 1;
+    slides[idx].querySelector('.slide-inner').scrollTop = 0;
+  }
+
+  prevBtn.addEventListener('click', () => go(idx - 1));
+  nextBtn.addEventListener('click', () => go(idx + 1));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') { go(idx + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { go(idx - 1); }
+  });
+
+  go(0);
+</script>
+
+</body>
+</html>
